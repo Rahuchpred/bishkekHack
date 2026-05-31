@@ -18,6 +18,10 @@ const SPIN_MS = 1100;
 const BOOST = 130;
 const HIT_DIST = 28;
 
+// Real Bishkek-avenue pixel-art backdrop (loaded once, drawn behind the road).
+const avenueImg = new Image();
+avenueImg.src = "/art/avenue-pixel.png";
+
 type Phase = "idle" | "countdown" | "racing" | "finished" | "podium";
 type ResultRow = { id: string; name: string; avatar: string; ms: number | null };
 type Ghost = { dist: number; lane: number; state: string; vel: number; lastT: number };
@@ -292,14 +296,22 @@ export function Drive({
     ctx.save();
     ctx.translate(sx, sy);
 
-    // dawn sky over Ala-Archa
+    // dawn sky over Ala-Archa (fallback while the backdrop loads)
     const sky = ctx.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, "#241a5e");
     sky.addColorStop(0.55, "#7a3f93");
     sky.addColorStop(1, "#f3a35a");
     ctx.fillStyle = sky;
     ctx.fillRect(-10, -10, W + 20, H + 20);
-    drawMountains(ctx, s.myDist);
+    if (avenueImg.complete && avenueImg.naturalWidth > 0) {
+      // Real Bishkek-avenue pixel art, cover-fit behind the race road.
+      const scale = Math.max(W / avenueImg.naturalWidth, H / avenueImg.naturalHeight);
+      const dw = avenueImg.naturalWidth * scale;
+      const dh = avenueImg.naturalHeight * scale;
+      ctx.drawImage(avenueImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    } else {
+      drawMountains(ctx, s.myDist);
+    }
 
     // road
     const roadW = W * 0.78;
