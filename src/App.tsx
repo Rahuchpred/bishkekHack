@@ -3,6 +3,7 @@ import { MapScreen } from "./screens/MapScreen";
 import { RoomScreen } from "./screens/RoomScreen";
 import { NameGate, loadIdentity } from "./components/NameGate";
 import { landmarkByKey } from "./data/landmarks";
+import { normalizeRoomCode } from "./lib/net";
 
 type Pending = { code: string; locKey: string; host: boolean };
 type Route = { name: "map" } | { name: "room"; code: string; locKey: string; host: boolean };
@@ -18,15 +19,27 @@ export function App() {
     const code = p.get("room");
     const loc = p.get("loc");
     if (code && loc && landmarkByKey(loc)) {
-      enter({ code: code.toUpperCase(), locKey: loc, host: false });
+      const roomCode = normalizeRoomCode(code);
+      const wasHost =
+        typeof sessionStorage !== "undefined" &&
+        sessionStorage.getItem(`pixelbishkek:host:${roomCode}`) === "1";
+      enter({ code: roomCode, locKey: loc, host: wasHost });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function enter(p: Pending) {
+    const roomCode = normalizeRoomCode(p.code);
+    if (p.host) {
+      try {
+        sessionStorage.setItem(`pixelbishkek:host:${roomCode}`, "1");
+      } catch {
+        /* ignore */
+      }
+    }
     if (loadIdentity()) {
-      setUrl(p.code, p.locKey);
-      setRoute({ name: "room", code: p.code, locKey: p.locKey, host: p.host });
+      setUrl(roomCode, p.locKey);
+      setRoute({ name: "room", code: roomCode, locKey: p.locKey, host: p.host });
     } else {
       setPending(p);
     }
@@ -43,8 +56,9 @@ export function App() {
         title={pending.host ? "Host a room" : "Join the room"}
         onDone={(name, avatar) => {
           setIdentity({ name, avatar });
-          setUrl(pending.code, pending.locKey);
-          setRoute({ name: "room", code: pending.code, locKey: pending.locKey, host: pending.host });
+          const roomCode = normalizeRoomCode(pending.code);
+          setUrl(roomCode, pending.locKey);
+          setRoute({ name: "room", code: roomCode, locKey: pending.locKey, host: pending.host });
           setPending(null);
         }}
       />
@@ -68,7 +82,7 @@ export function App() {
 
 function setUrl(code: string, locKey: string) {
   const p = new URLSearchParams();
-  p.set("room", code);
+  p.set("room", normalizeRoomCode(code));
   p.set("loc", locKey);
   history.replaceState(null, "", `${location.pathname}?${p.toString()}`);
 }

@@ -1,19 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { pickKaraokeSong } from "../data/karaokeSongs";
+import { useKaraokeAudio } from "../lib/karaokeAudio";
 import type { RoomConnection } from "../lib/net";
 import type { KaraokeState, Player } from "../lib/types";
 
-const SONGS = [
-  "Кайрат Нуртас — Айкатима",
-  "ABBA — Dancing Queen",
-  "Любэ — Конь",
-  "a song about your marshrutka",
-  "Queen — Bohemian Rhapsody",
-  "anything by Ziruza",
-  "the Kyrgyz national anthem (bold)",
-  "Imagine Dragons — Believer",
-];
-
-const ROUND_MS = 30000;
+const ROUND_MS = 10000;
 
 export function Karaoke({
   conn,
@@ -36,17 +27,23 @@ export function Karaoke({
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [myRating, setMyRating] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
-  const resultsSent = useRef(false);
+  const ratingPhaseSent = useRef(false);
+  const resultsPhaseSent = useRef(false);
   const scoredRound = useRef(-1);
 
-  // wire events
   useEffect(() => {
     const offState = conn.onEvent("karaoke:state", (payload: KaraokeState) => {
       setSt(payload);
       if (payload.phase === "singing") {
         setRatings({});
         setMyRating(null);
-        resultsSent.current = false;
+        ratingPhaseSent.current = false;
+        resultsPhaseSent.current = false;
+      }
+      if (payload.phase === "rating") {
+        setRatings({});
+        setMyRating(null);
+        resultsPhaseSent.current = false;
       }
     });
     const offRate = conn.onEvent("karaoke:rate", (p: { raterId: string; score: number }) => {
@@ -59,7 +56,6 @@ export function Karaoke({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // clock
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(t);
@@ -69,44 +65,57 @@ export function Karaoke({
   const iAmSinger = st.singerId === conn.me.id;
   const secondsLeft = st.endsAt ? Math.max(0, Math.ceil((st.endsAt - now) / 1000)) : 0;
 
+  const expectedRaters = useMemo(
+    () => players.filter((p) => p.id !== st.singerId),
+    [players, st.singerId]
+  );
+  const ratingsDone = expectedRaters.length === 0 || expectedRaters.every((p) => ratings[p.id] != null);
+  const ratingCount = expectedRaters.filter((p) => ratings[p.id] != null).length;
+
   const ratingVals = Object.values(ratings);
   const avg = ratingVals.length ? ratingVals.reduce((a, b) => a + b, 0) / ratingVals.length : 0;
 
-  // host drives the end-of-round transition
+  // Host: singing timer ended → open rating phase
   useEffect(() => {
     if (!isHost) return;
-    if (st.phase === "singing" && st.endsAt && now >= st.endsAt && !resultsSent.current) {
-      resultsSent.current = true;
-      conn.send("karaoke:state", { ...st, phase: "results", endsAt: null });
+    if (st.phase === "singing" && st.endsAt && now >= st.endsAt && !ratingPhaseSent.current) {
+      ratingPhaseSent.current = true;
+      conn.send("karaoke:state", { ...st, phase: "rating", endsAt: null });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now, st, isHost]);
 
-  // singer banks their own score once results land
+  // Host: everyone rated → show results
+  useEffect(() => {
+    if (!isHost || st.phase !== "rating" || !ratingsDone || resultsPhaseSent.current) return;
+    resultsPhaseSent.current = true;
+    conn.send("karaoke:state", { ...st, phase: "results", endsAt: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st.phase, ratingsDone, ratings, isHost]);
+
   useEffect(() => {
     if (st.phase === "results" && iAmSinger && scoredRound.current !== st.round) {
       scoredRound.current = st.round;
-      const delta = Math.round(avg * 20); // up to 100 pts
+      const delta = Math.round(avg * 20);
       conn.updateMe({ score: conn.me.score + delta });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [st.phase, st.round, iAmSinger]);
+  }, [st.phase, st.round, iAmSinger, avg]);
 
   function startRound(roundIndex: number) {
     if (players.length === 0) return;
     const singerId = players[roundIndex % players.length].id;
-    const song = SONGS[Math.floor(Math.random() * SONGS.length)];
     conn.send("karaoke:state", {
       phase: "singing",
       singerId,
-      song,
+      song: pickKaraokeSong(),
       endsAt: Date.now() + ROUND_MS,
       round: roundIndex,
     });
   }
 
   function rate(score: number) {
-    if (iAmSinger || myRating !== null) return;
+    if (st.phase !== "rating" || iAmSinger || myRating !== null) return;
     setMyRating(score);
     conn.send("karaoke:rate", { raterId: conn.me.id, score });
   }
@@ -116,8 +125,21 @@ export function Karaoke({
     [players]
   );
 
+  const peerIds = useMemo(() => players.map((p) => p.id), [players]);
+  const audio = useKaraokeAudio(conn, {
+    phase: st.phase,
+    singerId: st.singerId,
+    peerIds,
+  });
+
   return (
     <div className="screen map-wrap">
+      <audio
+        ref={audio.setAudioRef}
+        autoPlay
+        playsInline
+        style={{ position: "absolute", width: 0, height: 0, opacity: 0, pointerEvents: "none" }}
+      />
       <div className="panel kara">
         <div className="row spread">
           <h1>🎤 Karaoke Battle</h1>
@@ -128,7 +150,7 @@ export function Karaoke({
 
         {st.phase === "idle" && (
           <>
-            <p>Sing out loud. Everyone else rates you 1–5. Highest average wins the crown.</p>
+            <p>Sing your song, then everyone rates 1–5. We only move on once all votes are in.</p>
             {isHost ? (
               <button className="btn big" onClick={() => startRound(0)}>
                 Start round 1 ▶
@@ -147,7 +169,43 @@ export function Karaoke({
             <div className="song">“{st.song}”</div>
             <div className="timer">{secondsLeft}s</div>
             {iAmSinger ? (
-              <p style={{ color: "var(--accent)" }}>YOU'RE UP. Belt it out! 🎶</p>
+              <>
+                <p style={{ color: "var(--accent)" }}>YOU'RE UP. Belt it out! 🎶</p>
+                {!audio.hasRtc && (
+                  <p>Live voice needs a browser with microphone support (Chrome, Firefox, Edge).</p>
+                )}
+                {audio.hasRtc && audio.micStatus === "requesting" && (
+                  <p style={{ color: "var(--accent)" }}>Starting microphone…</p>
+                )}
+                {audio.hasRtc && audio.micStatus === "denied" && (
+                  <button className="btn big" onClick={() => void audio.enableMicrophone()}>
+                    Microphone blocked — tap to allow 🎤
+                  </button>
+                )}
+                {audio.micStatus === "live" && (
+                  <p style={{ color: "var(--accent)" }}>Mic live — others can hear you.</p>
+                )}
+                {audio.micError && <p>{audio.micError}</p>}
+                <p style={{ opacity: 0.7 }}>Ratings open when your time is up.</p>
+              </>
+            ) : (
+              <>
+                <p style={{ color: "var(--accent)" }}>🔊 Listening to {singer?.name}</p>
+                <p style={{ opacity: 0.7 }}>Audio connects automatically — rate after the timer.</p>
+              </>
+            )}
+          </>
+        )}
+
+        {st.phase === "rating" && (
+          <>
+            <p>
+              {singer?.avatar} {singer?.name} finished “{st.song}”
+            </p>
+            {iAmSinger ? (
+              <p style={{ color: "var(--accent)" }}>
+                Waiting for {expectedRaters.length} rating(s)… ({ratingCount}/{expectedRaters.length})
+              </p>
             ) : (
               <>
                 <p>Rate the performance:</p>
@@ -163,24 +221,34 @@ export function Karaoke({
                     </button>
                   ))}
                 </div>
-                {myRating !== null && <p>Locked in: {myRating} ⭐</p>}
+                {myRating !== null ? (
+                  <p>Locked in: {myRating} ⭐ — waiting for others…</p>
+                ) : (
+                  <p style={{ color: "var(--accent)" }}>Pick a score 1–5</p>
+                )}
               </>
             )}
-            <p style={{ opacity: 0.7 }}>{ratingVals.length} rating(s) in</p>
+            <p style={{ opacity: 0.7 }}>
+              {ratingCount}/{expectedRaters.length} vote(s) in
+            </p>
           </>
         )}
 
         {st.phase === "results" && (
           <>
             <p>
-              {singer?.avatar} {singer?.name} sang “{st.song}”
+              {singer?.avatar} {singer?.name} — “{st.song}”
             </p>
             <div className="big-num">{avg.toFixed(1)} ⭐</div>
-            <p>avg from {ratingVals.length} rater(s) · +{Math.round(avg * 20)} pts</p>
-            {isHost && (
-              <button className="btn big" onClick={() => startRound(st.round + 1)}>
+            <p>
+              avg from {ratingVals.length} rater(s) · +{Math.round(avg * 20)} pts
+            </p>
+            {isHost ? (
+              <button className="btn big" onClick={() => startRound(st.round + 1)} disabled={!ratingsDone}>
                 Next singer ▶
               </button>
+            ) : (
+              <p style={{ color: "var(--accent)" }}>Waiting for the host to pick the next singer…</p>
             )}
           </>
         )}

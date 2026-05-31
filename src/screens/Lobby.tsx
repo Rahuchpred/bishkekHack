@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { RoomConnection } from "../lib/net";
+import { supabaseConfigured } from "../lib/supabase";
 import type { Landmark, Player } from "../lib/types";
 
 export function Lobby({
@@ -75,8 +76,10 @@ export function Lobby({
 
         <p className="backend-note">
           {conn.backend === "supabase"
-            ? "Live multiplayer via Supabase realtime."
-            : "Local mode (no Supabase configured): open this URL in another tab/window to play together on this machine."}
+            ? "Live multiplayer via Supabase — works across browsers and devices."
+            : supabaseConfigured
+              ? "Supabase misconfigured: restart npm run dev after fixing .env.local (need VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY)."
+              : "Local mode only: second player must use another tab on this same browser profile. For Chrome profile A + B, add VITE_SUPABASE_* to .env.local and restart."}
         </p>
       </div>
     </div>

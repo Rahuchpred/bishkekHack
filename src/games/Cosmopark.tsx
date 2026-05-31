@@ -118,8 +118,14 @@ export function Cosmopark({
 
         {brawl.phase === "over" && (
           <>
-            <div className="big-num">{ranking[0]?.p.avatar} wins!</div>
-            <p>{ranking[0]?.p.name} with {ranking[0]?.n} taps</p>
+            <div className="big-num">
+              {ranking[0] && ranking[0].n > 0 ? `${ranking[0].p.avatar} wins!` : "Time's up!"}
+            </div>
+            <p>
+              {ranking[0] && ranking[0].n > 0
+                ? `${ranking[0].p.name} with ${ranking[0].n} taps`
+                : "Nobody tapped — rematch?"}
+            </p>
             {isHost && (
               <button className="btn big" onClick={() => start(brawl.round + 1)}>
                 Rematch ▶

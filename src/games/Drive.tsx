@@ -43,6 +43,7 @@ export function Drive({
     stateRef.current = { obstacles: [], score: 0, speed: 3, t: 0, alive: true };
     setScore(0);
     setRunning(true);
+    requestAnimationFrame(() => canvasRef.current?.focus());
   }
 
   useEffect(() => {
@@ -130,7 +131,14 @@ export function Drive({
           </button>
         </div>
         <p>Dodge 🪨 and ☀️, grab 🥟 for +50. Arrow keys or the buttons. Best score hits the board.</p>
-        <canvas ref={canvasRef} className="game" width={W} height={H} />
+        <canvas
+          ref={canvasRef}
+          className="game"
+          width={W}
+          height={H}
+          tabIndex={0}
+          onPointerDown={() => canvasRef.current?.focus()}
+        />
         {!running && (
           <div style={{ marginTop: 12 }}>
             {score > 0 && (

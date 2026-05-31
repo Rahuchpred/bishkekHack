@@ -7,3 +7,5 @@ dist
 .cursor/
 *.tsbuildinfo
 .vercel
+configure-agents.md
+hooks.md
