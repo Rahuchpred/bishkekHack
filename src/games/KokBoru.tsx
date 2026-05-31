@@ -10,8 +10,8 @@ const ROUND_MS = 45000;
 // Goal = the central stone "kazan" pit in the field art. Spawn = the left circle.
 const GOAL = { x: 0.5, y: 0.47, r: 0.075 };
 const SPAWN = { x: 0.2, y: 0.5 };
-const GRAB_R = 0.08;
-const STEAL_R = 0.085; // how close another player must be to snatch the goat
+const GRAB_R = 0.12; // forgiving grab radius so the goat is easy to take
+const STEAL_R = 0.12; // how close another player must be to snatch the goat
 const STEAL_COOLDOWN = 600; // ms the carrier is safe right after grabbing
 
 type Phase = "idle" | "playing" | "over";
@@ -271,26 +271,19 @@ export function KokBoru({
     ctx.stroke();
     ctx.textAlign = "center";
 
-    // ulak (goat): fully opaque, big, on a solid disc so it's always clearly visible
+    // ulak (goat): clean opaque emoji, no disc/ring, sized to grab easily
     const ux = s.ulak.x * W;
     const uy = s.ulak.y * H;
     ctx.globalAlpha = 1;
-    ctx.beginPath();
-    ctx.arc(ux, uy, 44, 0, Math.PI * 2);
-    ctx.fillStyle = "#ffffff";
-    ctx.fill();
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = "#ff3b6b";
-    ctx.stroke();
     ctx.textBaseline = "middle";
-    ctx.font = "76px serif";
+    ctx.font = "44px serif";
     ctx.fillText("🐐", ux, uy);
     ctx.textBaseline = "alphabetic";
     // label when nobody is holding it, so players know where to go
     if (!s.ulak.heldBy) {
-      ctx.font = '10px "Press Start 2P", monospace';
+      ctx.font = '9px "Press Start 2P", monospace';
       ctx.fillStyle = "#fff";
-      ctx.fillText("GOAT", ux, uy - 56);
+      ctx.fillText("GOAT", ux, uy - 30);
     }
 
     // hands
