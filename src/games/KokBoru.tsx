@@ -271,9 +271,25 @@ export function KokBoru({
     ctx.stroke();
     ctx.textAlign = "center";
 
-    // ulak
-    ctx.font = "40px serif";
-    ctx.fillText("🐐", s.ulak.x * W, s.ulak.y * H + 14);
+    // ulak (goat) with a bright pulsing halo so it's impossible to miss
+    const ux = s.ulak.x * W;
+    const uy = s.ulak.y * H;
+    const gpulse = 0.5 + 0.5 * Math.sin(now / 180);
+    ctx.beginPath();
+    ctx.arc(ux, uy, 34 + gpulse * 8, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 107, 157, ${0.3 + 0.25 * gpulse})`;
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "#ff6b9d";
+    ctx.stroke();
+    ctx.font = "64px serif";
+    ctx.fillText("🐐", ux, uy + 22);
+    // label when nobody is holding it, so players know where to go
+    if (!s.ulak.heldBy) {
+      ctx.font = '10px "Press Start 2P", monospace';
+      ctx.fillStyle = "#fff";
+      ctx.fillText("GOAT", ux, uy - 40);
+    }
 
     // hands
     const pmap = new Map(playersRef.current.map((p) => [p.id, p]));
