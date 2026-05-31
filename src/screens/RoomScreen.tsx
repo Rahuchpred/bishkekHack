@@ -12,6 +12,7 @@ import { Lobby } from "./Lobby";
 import { Karaoke } from "../games/Karaoke";
 import { Drive } from "../games/Drive";
 import { Cosmopark } from "../games/Cosmopark";
+import { KokBoru } from "../games/KokBoru";
 
 export function RoomScreen({
   code,
@@ -95,5 +96,6 @@ export function RoomScreen({
   const common = { conn, players, isHost: host, onLeave: leaveRoom };
   if (landmark.game === "karaoke") return <Karaoke {...common} />;
   if (landmark.game === "drive") return <Drive {...common} />;
+  if (landmark.game === "kokboru") return <KokBoru {...common} />;
   return <Cosmopark {...common} />;
 }

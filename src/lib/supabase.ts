@@ -26,5 +26,5 @@ export const supabaseConfigured =
   !anon.includes("YOUR-PUBLISHABLE");
 
 export const supabase: SupabaseClient | null = supabaseConfigured
-  ? createClient(url!, anon!, { realtime: { params: { eventsPerSecond: 20 } } })
+  ? createClient(url!, anon!, { realtime: { params: { eventsPerSecond: 40 } } })
   : null;

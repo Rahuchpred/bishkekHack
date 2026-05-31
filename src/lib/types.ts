@@ -1,4 +1,4 @@
-export type GameKey = "karaoke" | "drive" | "cosmopark";
+export type GameKey = "karaoke" | "drive" | "cosmopark" | "kokboru";
 
 export interface Landmark {
   key: string;

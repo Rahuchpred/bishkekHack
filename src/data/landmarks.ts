@@ -43,13 +43,13 @@ export const LANDMARKS: Landmark[] = [
     key: "ala-too",
     name: "Ala-Too Square",
     nameRu: "Ала-Тоо",
-    game: "cosmopark",
-    blurb: "City center fountains. More games soon.",
+    game: "kokboru",
+    blurb: "Kök-börü Grab-Off — use your camera: grab the goat, score in the goal.",
     // Dead center — the main square with the flagpole.
     x: 49,
     y: 49,
-    emoji: "⛲",
-    status: "soon",
+    emoji: "🐐",
+    status: "live",
   },
 ];
 
