@@ -271,24 +271,26 @@ export function KokBoru({
     ctx.stroke();
     ctx.textAlign = "center";
 
-    // ulak (goat) with a bright pulsing halo so it's impossible to miss
+    // ulak (goat): fully opaque, big, on a solid disc so it's always clearly visible
     const ux = s.ulak.x * W;
     const uy = s.ulak.y * H;
-    const gpulse = 0.5 + 0.5 * Math.sin(now / 180);
+    ctx.globalAlpha = 1;
     ctx.beginPath();
-    ctx.arc(ux, uy, 34 + gpulse * 8, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255, 107, 157, ${0.3 + 0.25 * gpulse})`;
+    ctx.arc(ux, uy, 44, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
     ctx.fill();
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = "#ff6b9d";
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#ff3b6b";
     ctx.stroke();
-    ctx.font = "64px serif";
-    ctx.fillText("🐐", ux, uy + 22);
+    ctx.textBaseline = "middle";
+    ctx.font = "76px serif";
+    ctx.fillText("🐐", ux, uy);
+    ctx.textBaseline = "alphabetic";
     // label when nobody is holding it, so players know where to go
     if (!s.ulak.heldBy) {
       ctx.font = '10px "Press Start 2P", monospace';
       ctx.fillStyle = "#fff";
-      ctx.fillText("GOAT", ux, uy - 40);
+      ctx.fillText("GOAT", ux, uy - 56);
     }
 
     // hands
