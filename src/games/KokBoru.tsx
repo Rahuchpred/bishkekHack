@@ -3,13 +3,16 @@ import type { RoomConnection } from "../lib/net";
 import type { Player } from "../lib/types";
 import { HandTracker } from "../lib/handTracker";
 
-// Play field is normalized 0..1; canvas scales it.
-const W = 480;
-const H = 600;
+// Play field is normalized 0..1; canvas scales it. 3:2 to match the field art.
+const W = 720;
+const H = 480;
 const ROUND_MS = 45000;
-const GOAL = { x: 0.5, y: 0.16, r: 0.13 };
-const SPAWN = { x: 0.5, y: 0.62 };
-const GRAB_R = 0.1;
+// Goal = the central stone "kazan" pit in the field art. Spawn = the left circle.
+const GOAL = { x: 0.5, y: 0.47, r: 0.075 };
+const SPAWN = { x: 0.2, y: 0.5 };
+const GRAB_R = 0.08;
+const STEAL_R = 0.085; // how close another player must be to snatch the goat
+const STEAL_COOLDOWN = 600; // ms the carrier is safe right after grabbing
 
 type Phase = "idle" | "playing" | "over";
 
@@ -17,6 +20,7 @@ interface Ulak {
   x: number;
   y: number;
   heldBy: string | null;
+  grabbedAt: number;
 }
 interface Hand {
   x: number;
@@ -45,10 +49,11 @@ export function KokBoru({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const trackerRef = useRef<HandTracker | null>(null);
+  const fieldImg = useRef<HTMLImageElement | null>(null);
   const handsRef = useRef<Record<string, Hand>>({});
   const stateRef = useRef<GameState>({
     phase: "idle",
-    ulak: { ...SPAWN, heldBy: null },
+    ulak: { ...SPAWN, heldBy: null, grabbedAt: 0 },
     scores: {},
     endsAt: null,
     round: 0,
@@ -73,6 +78,15 @@ export function KokBoru({
     trackerRef.current = tracker;
     tracker.start().then((m) => setMode(m));
     return () => tracker.stop();
+  }, []);
+
+  // load the generated Kyrgyz field background
+  useEffect(() => {
+    const img = new Image();
+    img.src = "/art/kokboru-field.png";
+    img.onload = () => {
+      fieldImg.current = img;
+    };
   }, []);
 
   // network: receive hands from others + state from host
@@ -178,11 +192,22 @@ export function KokBoru({
           if (dist(s.ulak, GOAL) < GOAL.r) {
             const who = s.ulak.heldBy;
             s.scores[who] = (s.scores[who] ?? 0) + 1;
-            s.ulak = { ...SPAWN, heldBy: null };
+            s.ulak = { ...SPAWN, heldBy: null, grabbedAt: 0 };
           } else {
             s.ulak.heldBy = null; // dropped in the field
           }
           pushHud(s);
+        } else if (now - s.ulak.grabbedAt > STEAL_COOLDOWN) {
+          // STEAL: another player whose fist reaches the goat snatches it
+          for (const [id, oh] of Object.entries(hands)) {
+            if (id === s.ulak.heldBy) continue;
+            if (now - oh.last > 1500) continue;
+            if (oh.fist && dist(oh, s.ulak) < STEAL_R) {
+              s.ulak.heldBy = id;
+              s.ulak.grabbedAt = now;
+              break;
+            }
+          }
         }
       }
     } else {
@@ -191,6 +216,7 @@ export function KokBoru({
         if (now - h.last > 1500) continue;
         if (h.fist && dist(h, s.ulak) < GRAB_R) {
           s.ulak.heldBy = id;
+          s.ulak.grabbedAt = now;
           break;
         }
       }
@@ -207,7 +233,7 @@ export function KokBoru({
     s.phase = "playing";
     s.round += 1;
     s.scores = {};
-    s.ulak = { ...SPAWN, heldBy: null };
+    s.ulak = { ...SPAWN, heldBy: null, grabbedAt: 0 };
     s.endsAt = Date.now() + ROUND_MS;
     pushHud(s);
     conn.send("kb:state", s);
@@ -225,23 +251,25 @@ export function KokBoru({
   // ---- render ----
   function render(ctx: CanvasRenderingContext2D, now: number) {
     const s = stateRef.current;
-    // field
-    ctx.fillStyle = "#2f8f3e";
-    ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#3fa34d";
-    for (let i = 0; i < H; i += 24) ctx.fillRect(0, i, W, 12);
+    ctx.imageSmoothingEnabled = false;
+    // field background: generated Kyrgyz kök-börü field (green fallback while loading)
+    if (fieldImg.current) {
+      ctx.drawImage(fieldImg.current, 0, 0, W, H);
+    } else {
+      ctx.fillStyle = "#2f8f3e";
+      ctx.fillRect(0, 0, W, H);
+    }
 
-    // goal
+    // goal = the central kazan pit; pulsing gold ring marks the target
+    const pulse = 0.5 + 0.5 * Math.sin(now / 250);
     ctx.beginPath();
     ctx.arc(GOAL.x * W, GOAL.y * H, GOAL.r * W, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255, 210, 63, 0.25)";
+    ctx.fillStyle = `rgba(255, 210, 63, ${0.15 + 0.18 * pulse})`;
     ctx.fill();
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3;
     ctx.strokeStyle = "#ffd23f";
     ctx.stroke();
-    ctx.font = "28px serif";
     ctx.textAlign = "center";
-    ctx.fillText("🥅", GOAL.x * W, GOAL.y * H + 10);
 
     // ulak
     ctx.font = "40px serif";
@@ -287,9 +315,9 @@ export function KokBoru({
         </div>
         <p>
           {mode === "camera"
-            ? "Move your hand. Make a FIST over the goat to grab it, carry it to the 🥅, open your hand to score."
+            ? "Make a FIST over the goat 🐐 to grab it, carry it to the glowing kazan (gold ring) and open your hand to score. Reach a carrier and grab to STEAL it!"
             : mode === "mouse"
-            ? "No camera — use your mouse: move to aim, hold the button to grab, release in the 🥅 to score."
+            ? "No camera — move the mouse to aim, hold the button to grab the goat, release in the glowing kazan to score. Grab near a carrier to STEAL it!"
             : "Starting camera…"}
         </p>
 
