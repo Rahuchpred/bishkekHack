@@ -21,7 +21,16 @@ export function MapScreen({ onHost }: { onHost: (locKey: string, code: string) =
           PIXEL BISHKEK
           <small>tap a place · invite friends · play</small>
         </div>
-        <img className="overworld" src="/art/overworld.svg" alt="Pixel map of Bishkek" />
+        <img
+          className="overworld"
+          src="/art/overworld.png"
+          alt="Pixel map of Bishkek"
+          onError={(e) => {
+            // Fall back to the bundled placeholder if the PNG is missing.
+            const img = e.currentTarget;
+            if (!img.src.endsWith("overworld.svg")) img.src = "/art/overworld.svg";
+          }}
+        />
         {LANDMARKS.map((l) => (
           <button
             key={l.key}

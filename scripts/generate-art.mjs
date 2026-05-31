@@ -29,11 +29,19 @@ async function loadEnv() {
 
 const PROMPTS = {
   overworld:
-    "Top-down 16-bit pixel art map of Bishkek, Kyrgyzstan as a cute video game overworld. " +
-    "Snowy Ala-Too mountains across the top, a green city park with trees on the left, a " +
-    "central square with a blue fountain, low city blocks, a pink shopping mall on the right, " +
-    "roads with a yellow marshrutka minibus, warm summer sunset sky. Stardew Valley / Pokemon " +
-    "town-map vibe. Clean readable pixels, vibrant, no text, no labels, no UI.",
+    "Semi-realistic painterly pixel-art map of Bishkek, Kyrgyzstan, seen from an elevated " +
+    "aerial perspective. Cofounder.co landing-page aesthetic: soft gradient shading, gentle " +
+    "volumetric lighting, real-life-feeling pixels with depth and atmosphere, fluffy white " +
+    "clouds drifting over a clear blue sky. NOT blocky low-res 8-bit — use a medium/high-" +
+    "resolution painterly pixel style with smooth color transitions. Accurate layout: the " +
+    "snow-capped Ala-Archa / Tien Shan mountain range spanning the entire TOP edge with hazy " +
+    "peaks as a backdrop; a large green Yntymak Park at TOP-CENTER just below the mountains and " +
+    "above the main avenue; the central Ala-Too Square with a tall flagpole flying the Kyrgyz " +
+    "flag in the CENTER of the map, with Chuy Avenue running through it; a Cosmopark amusement " +
+    "park with a ferris wheel together with Victory Park (a three-arch red-granite yurt monument) " +
+    "on the LEFT outskirts; a dense grid of tree-lined boulevards and low terracotta-roofed " +
+    "buildings, lush green parks and a thin river. Warm summer daylight, vibrant but natural " +
+    "colors, cinematic depth haze on the horizon. No text, no labels, no UI overlays.",
   yntymak:
     "16-bit pixel art icon of a karaoke microphone with musical notes, summer park vibe, " +
     "transparent background, game asset, no text.",
