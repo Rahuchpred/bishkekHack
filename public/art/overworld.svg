@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1000" viewBox="0 0 1500 1000" shape-rendering="crispEdges">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6d3bd1"/>
+      <stop offset="55%" stop-color="#a85fd6"/>
+      <stop offset="100%" stop-color="#ffb14e"/>
+    </linearGradient>
+  </defs>
+
+  <!-- sky -->
+  <rect width="1500" height="430" fill="url(#sky)"/>
+  <!-- sun -->
+  <rect x="690" y="60" width="120" height="120" fill="#ffd23f"/>
+  <rect x="670" y="80" width="20" height="80" fill="#ffd23f"/>
+  <rect x="810" y="80" width="20" height="80" fill="#ffd23f"/>
+
+  <!-- mountains (Ala-Too / Ala-Archa) -->
+  <polygon points="850,430 1080,150 1310,430" fill="#5b4b8a"/>
+  <polygon points="1080,150 1140,230 1020,230" fill="#efeaff"/>
+  <polygon points="1120,430 1340,210 1500,400 1500,430" fill="#4a3c75"/>
+  <polygon points="1340,210 1390,280 1290,280" fill="#efeaff"/>
+
+  <!-- ground -->
+  <rect y="430" width="1500" height="570" fill="#3fa34d"/>
+  <rect y="430" width="1500" height="22" fill="#57c365"/>
+
+  <!-- roads -->
+  <rect x="0" y="640" width="1500" height="70" fill="#2c2740"/>
+  <rect x="0" y="668" width="1500" height="12" fill="#ffd23f"/>
+  <rect x="700" y="452" width="80" height="548" fill="#2c2740"/>
+  <rect x="732" y="452" width="14" height="548" fill="#ffd23f"/>
+
+  <!-- park (left, Yntymak) -->
+  <rect x="120" y="720" width="360" height="200" fill="#2f8f3e"/>
+  <rect x="180" y="700" width="48" height="48" fill="#1f6b2c"/>
+  <rect x="196" y="748" width="16" height="40" fill="#7a4a23"/>
+  <rect x="300" y="690" width="60" height="60" fill="#1f6b2c"/>
+  <rect x="322" y="750" width="16" height="46" fill="#7a4a23"/>
+  <rect x="400" y="705" width="48" height="48" fill="#1f6b2c"/>
+  <rect x="416" y="753" width="16" height="40" fill="#7a4a23"/>
+
+  <!-- central square + fountain (Ala-Too) -->
+  <rect x="630" y="430" width="260" height="160" fill="#b9a6e8"/>
+  <rect x="720" y="480" width="80" height="80" fill="#3aa0d6"/>
+  <rect x="744" y="456" width="32" height="40" fill="#7fd0f0"/>
+
+  <!-- city blocks (center-right) -->
+  <rect x="900" y="500" width="90" height="140" fill="#3a3358"/>
+  <rect x="912" y="520" width="20" height="20" fill="#ffd23f"/>
+  <rect x="952" y="520" width="20" height="20" fill="#ffd23f"/>
+  <rect x="912" y="560" width="20" height="20" fill="#ffd23f"/>
+  <rect x="952" y="560" width="20" height="20" fill="#ffd23f"/>
+
+  <!-- Cosmopark mall (right) -->
+  <rect x="1040" y="760" width="300" height="170" fill="#b0407a"/>
+  <rect x="1040" y="760" width="300" height="26" fill="#ff6b9d"/>
+  <rect x="1080" y="810" width="40" height="80" fill="#2c2740"/>
+  <rect x="1150" y="810" width="40" height="80" fill="#2c2740"/>
+  <rect x="1220" y="810" width="40" height="80" fill="#2c2740"/>
+  <rect x="1290" y="810" width="30" height="80" fill="#2c2740"/>
+
+  <!-- little marshrutka on the road -->
+  <rect x="360" y="650" width="90" height="44" fill="#ffd23f"/>
+  <rect x="372" y="660" width="24" height="20" fill="#7fd0f0"/>
+  <rect x="406" y="660" width="24" height="20" fill="#7fd0f0"/>
+  <rect x="372" y="692" width="18" height="14" fill="#1a1330"/>
+  <rect x="418" y="692" width="18" height="14" fill="#1a1330"/>
+
+  <!-- pixel clouds -->
+  <rect x="120" y="120" width="120" height="28" fill="#efeaff" opacity="0.85"/>
+  <rect x="150" y="100" width="70" height="22" fill="#efeaff" opacity="0.85"/>
+  <rect x="430" y="180" width="120" height="26" fill="#efeaff" opacity="0.7"/>
+</svg>
