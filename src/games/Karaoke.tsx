@@ -3,6 +3,7 @@ import { pickKaraokeSong } from "../data/karaokeSongs";
 import { useKaraokeAudio } from "../lib/karaokeAudio";
 import type { RoomConnection } from "../lib/net";
 import type { KaraokeState, Player } from "../lib/types";
+import { KaraokeStage } from "./KaraokeStage";
 
 const ROUND_MS = 10000;
 
@@ -133,7 +134,14 @@ export function Karaoke({
   });
 
   return (
-    <div className="screen map-wrap">
+    <div className="screen kara-scene">
+      <KaraokeStage active={st.phase === "singing"} />
+      {st.phase === "singing" && singer && (
+        <div className="stage-singer">
+          <span className="stage-singer-emoji">{singer.avatar}</span>
+          <span className="stage-singer-name">{singer.name}</span>
+        </div>
+      )}
       <audio
         ref={audio.setAudioRef}
         autoPlay
@@ -190,8 +198,19 @@ export function Karaoke({
               </>
             ) : (
               <>
-                <p style={{ color: "var(--accent)" }}>🔊 Listening to {singer?.name}</p>
-                <p style={{ opacity: 0.7 }}>Audio connects automatically — rate after the timer.</p>
+                {!audio.hasRtc && (
+                  <p>Live voice needs a browser with WebRTC (Chrome, Firefox, Edge, Safari).</p>
+                )}
+                {audio.hasRtc && audio.listenStatus === "blocked" ? (
+                  <button className="btn big" onClick={() => void audio.tapToHear()}>
+                    🔊 Tap to hear {singer?.name}
+                  </button>
+                ) : audio.hasRtc && audio.listenStatus === "live" ? (
+                  <p style={{ color: "var(--accent)" }}>🔊 Hearing {singer?.name} live</p>
+                ) : audio.hasRtc ? (
+                  <p style={{ color: "var(--accent)" }}>🔌 Connecting to {singer?.name}'s mic…</p>
+                ) : null}
+                <p style={{ opacity: 0.7 }}>Rate after the timer runs out.</p>
               </>
             )}
           </>

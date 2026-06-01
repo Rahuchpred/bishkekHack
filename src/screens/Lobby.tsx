@@ -3,6 +3,23 @@ import type { RoomConnection } from "../lib/net";
 import { supabaseConfigured } from "../lib/supabase";
 import type { Landmark, Player } from "../lib/types";
 
+/**
+ * The base URL teammates should open. Per-deploy Vercel URLs change on every
+ * deploy and can sit behind deployment protection, so hand out the stable
+ * public domain instead. Override with VITE_PUBLIC_BASE_URL if you add a custom
+ * domain. Falls back to the current origin (correct for localhost).
+ */
+function shareBaseUrl(): string {
+  const override = (import.meta.env as Record<string, string | undefined>).VITE_PUBLIC_BASE_URL?.trim();
+  if (override) return override.replace(/\/+$/, "");
+  const { origin, hostname, pathname } = location;
+  // Rewrite ephemeral "pixel-bishkek-<hash>-<team>.vercel.app" to the canonical alias.
+  if (/^pixel-bishkek-[a-z0-9]+-.+\.vercel\.app$/i.test(hostname)) {
+    return `https://pixel-bishkek.vercel.app${pathname}`;
+  }
+  return `${origin}${pathname}`;
+}
+
 export function Lobby({
   conn,
   players,
@@ -19,7 +36,7 @@ export function Lobby({
   onLeave: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const shareUrl = `${location.origin}${location.pathname}?room=${conn.code}&loc=${landmark.key}`;
+  const shareUrl = `${shareBaseUrl()}?room=${conn.code}&loc=${landmark.key}`;
 
   function copy() {
     navigator.clipboard?.writeText(shareUrl).then(

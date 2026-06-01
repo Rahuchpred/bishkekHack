@@ -94,6 +94,8 @@ class SupabaseRoom implements RoomConnection {
   me: Player;
   private channel;
   private playerCbs = new Set<(p: Player[]) => void>();
+  private eventCbs = new Map<string, Set<(payload: any, fromId?: string) => void>>();
+  private registeredEvents = new Set<string>();
   private subscribed = false;
 
   constructor(code: string, me: Player) {
@@ -139,11 +141,20 @@ class SupabaseRoom implements RoomConnection {
   }
 
   onEvent(event: string, cb: (payload: any, fromId?: string) => void) {
-    const handler = (msg: { payload?: { data?: unknown; from?: string } }) =>
-      cb(msg.payload?.data, msg.payload?.from);
-    this.channel.on("broadcast", { event }, handler);
+    if (!this.eventCbs.has(event)) this.eventCbs.set(event, new Set());
+    this.eventCbs.get(event)!.add(cb);
+
+    if (!this.registeredEvents.has(event)) {
+      this.registeredEvents.add(event);
+      this.channel.on("broadcast", { event }, (msg: { payload?: { data?: unknown; from?: string } }) => {
+        const data = msg.payload?.data;
+        const from = msg.payload?.from;
+        this.eventCbs.get(event)?.forEach((fn) => fn(data, from));
+      });
+    }
+
     return () => {
-      /* supabase has no off per-handler; channel torn down on leave */
+      this.eventCbs.get(event)?.delete(cb);
     };
   }
 

@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getIceServers } from "./iceServers";
 import type { RoomConnection } from "./net";
 import type { KaraokeSignalPayload } from "./types";
 
-const ICE: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-  { urls: "stun:stun2.l.google.com:19302" },
-];
+const ICE: RTCIceServer[] = getIceServers();
 
 export type MicStatus = "idle" | "requesting" | "live" | "denied" | "unsupported";
+/** What the listener's end of the voice link is doing. */
+export type ListenStatus = "idle" | "connecting" | "live" | "blocked";
 
 function hasRtc(): boolean {
   return typeof RTCPeerConnection !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
@@ -55,8 +54,10 @@ export function useKaraokeAudio(
 
   const [micStatus, setMicStatus] = useState<MicStatus>("idle");
   const [micError, setMicError] = useState<string | null>(null);
+  const [listenStatus, setListenStatus] = useState<ListenStatus>("idle");
 
   const localStreamRef = useRef<MediaStream | null>(null);
+  const lastStreamRef = useRef<MediaStream | null>(null);
   const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const pendingIceRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
@@ -79,10 +80,31 @@ export function useKaraokeAudio(
   }, []);
 
   const attachRemoteAudio = useCallback(async (stream: MediaStream) => {
+    lastStreamRef.current = stream;
     const audio = remoteAudioRef.current;
     if (!audio) return;
     const ok = await playRemoteStream(audio, stream);
-    if (ok) listeningLiveRef.current = true;
+    if (ok) {
+      listeningLiveRef.current = true;
+      setListenStatus("live");
+    } else {
+      // Browser blocked autoplay — listener must tap once to start audio.
+      setListenStatus("blocked");
+    }
+  }, []);
+
+  /** Listener fallback: retry playback after a user gesture if autoplay was blocked. */
+  const tapToHear = useCallback(async () => {
+    const audio = remoteAudioRef.current;
+    const stream = lastStreamRef.current;
+    if (audio) primeAudioElement(audio);
+    if (!audio || !stream) return false;
+    const ok = await playRemoteStream(audio, stream);
+    if (ok) {
+      listeningLiveRef.current = true;
+      setListenStatus("live");
+    }
+    return ok;
   }, []);
 
   const cleanup = useCallback(() => {
@@ -101,12 +123,14 @@ export function useKaraokeAudio(
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
     }
+    lastStreamRef.current = null;
     const audio = remoteAudioRef.current;
     if (audio) {
       audio.srcObject = null;
     }
     setMicStatus("idle");
     setMicError(null);
+    setListenStatus("idle");
   }, []);
 
   const sendSignal = useCallback(
@@ -144,6 +168,7 @@ export function useKaraokeAudio(
     pcsRef.current.delete(peerId);
     pendingIceRef.current.delete(peerId);
     connectingRef.current.delete(peerId);
+    listeningLiveRef.current = false;
   }, []);
 
   const connectAsSinger = useCallback(
@@ -196,6 +221,13 @@ export function useKaraokeAudio(
     [closePeer, conn.me.id, flushIce, sendSignal]
   );
 
+  const requestOfferFromSinger = useCallback(() => {
+    if (listeningLiveRef.current) return;
+    const sid = optsRef.current.singerId;
+    if (!sid || sid === conn.me.id) return;
+    conn.send("karaoke:need-offer", { listenerId: conn.me.id, singerId: sid });
+  }, [conn]);
+
   const connectAsListener = useCallback(
     async (peerId: string, offer: RTCSessionDescriptionInit) => {
       if (peerId !== optsRef.current.singerId) return;
@@ -216,6 +248,28 @@ export function useKaraokeAudio(
         void attachRemoteAudio(stream);
       };
 
+      pc.onconnectionstatechange = () => {
+        const s = pc.connectionState;
+        if (s === "connected" && !listeningLiveRef.current) {
+          setListenStatus((prev) => (prev === "live" ? prev : "connecting"));
+        } else if (s === "failed" || s === "disconnected") {
+          listeningLiveRef.current = false;
+          closePeer(peerId);
+          requestOfferFromSinger();
+        } else if (s === "closed") {
+          listeningLiveRef.current = false;
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        const s = pc.iceConnectionState;
+        if (s === "failed" || s === "disconnected") {
+          listeningLiveRef.current = false;
+          closePeer(peerId);
+          requestOfferFromSinger();
+        }
+      };
+
       pc.onicecandidate = (e) => {
         if (e.candidate) {
           sendSignal({
@@ -228,6 +282,7 @@ export function useKaraokeAudio(
       };
 
       try {
+        setListenStatus((prev) => (prev === "live" ? prev : "connecting"));
         await pc.setRemoteDescription(offer);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
@@ -245,20 +300,13 @@ export function useKaraokeAudio(
         connectingRef.current.delete(peerId);
       }
     },
-    [attachRemoteAudio, closePeer, conn.me.id, flushIce, sendSignal]
+    [attachRemoteAudio, closePeer, conn.me.id, flushIce, requestOfferFromSinger, sendSignal]
   );
 
   const connectToAllListeners = useCallback(async () => {
     const others = optsRef.current.peerIds.filter((id) => id !== conn.me.id);
     await Promise.all(others.map((id) => connectAsSinger(id)));
   }, [conn.me.id, connectAsSinger]);
-
-  const requestOfferFromSinger = useCallback(() => {
-    if (listeningLiveRef.current) return;
-    const sid = optsRef.current.singerId;
-    if (!sid || sid === conn.me.id) return;
-    conn.send("karaoke:need-offer", { listenerId: conn.me.id, singerId: sid });
-  }, [conn]);
 
   const enableMicrophone = useCallback(async () => {
     if (!hasRtc()) {
@@ -300,6 +348,8 @@ export function useKaraokeAudio(
       const peerId = raw.from;
 
       if (raw.type === "offer" && raw.from === sid && !micLiveRef.current) {
+        // Ignore stale offers from a previous singer round.
+        if (peerId !== sid) return;
         await connectAsListener(peerId, raw.sdp);
       } else if (raw.type === "answer" && micLiveRef.current && raw.from !== conn.me.id) {
         const pc = pcsRef.current.get(peerId);
@@ -366,6 +416,7 @@ export function useKaraokeAudio(
   useEffect(() => {
     if (!listening || !singerId) return;
     listeningLiveRef.current = false;
+    setListenStatus("connecting");
     requestOfferFromSinger();
     needOfferTimerRef.current = window.setInterval(() => {
       if (!listeningLiveRef.current) requestOfferFromSinger();
@@ -401,5 +452,7 @@ export function useKaraokeAudio(
     enableMicrophone,
     hasRtc: hasRtc(),
     listening,
+    listenStatus,
+    tapToHear,
   };
 }
