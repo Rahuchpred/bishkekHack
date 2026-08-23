@@ -82,10 +82,123 @@ function sortPlayers(players: Player[]): Player[] {
   );
 }
 
+/** How long to wait for the realtime channel before giving up on it. */
+const FAILOVER_MS = 5000;
+
 /** Pick the right backend: real Supabase realtime, or a same-machine multi-tab fallback. */
 export function joinRoom(code: string, me: Player): RoomConnection {
   const normalized = normalizeRoomCode(code);
-  return supabase ? new SupabaseRoom(normalized, me) : new LocalRoom(normalized, me);
+  return supabase
+    ? new FailoverRoom(normalized, me)
+    : new LocalRoom(normalized, me);
+}
+
+/**
+ * Starts on Supabase and drops to the same-machine fallback if the
+ * backend never answers.
+ *
+ * Configuration is not a promise. A Supabase project can be paused or
+ * deleted while its environment variables stay behind, and trusting the
+ * variables over reality is what left the lobby hanging: the room kept
+ * announcing live multiplayer while the host's own start event could
+ * never come back to it. Waiting for the channel and then failing over
+ * means a dead backend costs five seconds instead of the whole game.
+ */
+class FailoverRoom implements RoomConnection {
+  code: string;
+  me: Player;
+
+  private active: RoomConnection;
+  private playerCbs = new Set<(players: Player[]) => void>();
+  private eventCbs = new Map<string, Set<(payload: any, fromId?: string) => void>>();
+  private offs: Array<() => void> = [];
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private settled = false;
+
+  /** A getter, so the lobby's message follows the connection it actually has. */
+  get backend(): "supabase" | "local" {
+    return this.active.backend;
+  }
+
+  constructor(code: string, me: Player) {
+    this.code = code;
+    this.me = me;
+
+    const room = new SupabaseRoom(code, me);
+    room.onUnavailable(() => this.fallback());
+    this.active = room;
+    this.attach();
+
+    this.timer = setTimeout(() => {
+      if (!room.live) this.fallback();
+    }, FAILOVER_MS);
+  }
+
+  /** Point the wrapper's subscribers at whichever connection is current. */
+  private attach() {
+    this.offs.forEach((off) => off());
+    this.offs = [];
+    this.offs.push(
+      this.active.onPlayers((players) => this.playerCbs.forEach((cb) => cb(players)))
+    );
+    for (const event of this.eventCbs.keys()) this.forward(event);
+  }
+
+  private forward(event: string) {
+    this.offs.push(
+      this.active.onEvent(event, (payload, fromId) => {
+        this.eventCbs.get(event)?.forEach((cb) => cb(payload, fromId));
+      })
+    );
+  }
+
+  private fallback() {
+    if (this.settled) return;
+    this.settled = true;
+    if (this.timer) clearTimeout(this.timer);
+    console.warn(
+      "[room] Supabase did not answer; falling back to same-machine mode."
+    );
+    try {
+      this.active.leave();
+    } catch {
+      /* it was never up */
+    }
+    this.active = new LocalRoom(this.code, this.me);
+    this.attach();
+  }
+
+  onPlayers(cb: (players: Player[]) => void) {
+    this.playerCbs.add(cb);
+    return () => this.playerCbs.delete(cb);
+  }
+
+  onEvent(event: string, cb: (payload: any, fromId?: string) => void) {
+    let set = this.eventCbs.get(event);
+    if (!set) {
+      set = new Set();
+      this.eventCbs.set(event, set);
+      this.forward(event);
+    }
+    set.add(cb);
+    return () => {
+      set!.delete(cb);
+    };
+  }
+
+  send(event: string, payload: any) {
+    this.active.send(event, payload);
+  }
+
+  updateMe(patch: Partial<Player>) {
+    this.active.updateMe(patch);
+  }
+
+  leave() {
+    if (this.timer) clearTimeout(this.timer);
+    this.offs.forEach((off) => off());
+    this.active.leave();
+  }
 }
 
 class SupabaseRoom implements RoomConnection {
@@ -97,6 +210,17 @@ class SupabaseRoom implements RoomConnection {
   private eventCbs = new Map<string, Set<(payload: any, fromId?: string) => void>>();
   private registeredEvents = new Set<string>();
   private subscribed = false;
+  private failCb: (() => void) | null = null;
+
+  /** True once the realtime channel has actually answered. */
+  get live() {
+    return this.subscribed;
+  }
+
+  /** Told when the channel gives up, so a caller can fail over. */
+  onUnavailable(cb: () => void) {
+    this.failCb = cb;
+  }
 
   constructor(code: string, me: Player) {
     this.code = code;
@@ -113,6 +237,7 @@ class SupabaseRoom implements RoomConnection {
         void this.channel.track(this.me).then(() => this.emitPlayers());
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         console.error("[room] Supabase channel error:", status, err);
+        this.failCb?.();
       }
     });
   }
